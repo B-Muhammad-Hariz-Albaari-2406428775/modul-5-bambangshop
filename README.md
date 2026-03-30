@@ -115,5 +115,17 @@ Setiap bagian memiliki lock sendiri.
 Jadi beberapa thread bisa mengakses key yang berbeda secara bersamaan tanpa saling menunggu.
 
 #### Reflection Publisher-2
+1. Mengapa Memisahkan "Service" dan "Repository" dari Model?
+Pemisahan ini mengikuti Single Responsibility Principle (SRP). Repository hanya handle data access, Service handle business logic, Model jadi pure data structure. Ini membuat code lebih testable (test logic tanpa mock database), maintainable (change database engine hanya affect Repository), dan reusable (satu Service bisa pakai multiple Repository).
+2. Apa yang Terjadi Jika Hanya Menggunakan Model?
+Kompleksitas melonjak drastis karena tight coupling. Program Model harus tahu cara subscribe/unsubscribe, Subscriber tahu validate & query, Notification tahu track status—semua mixed di satu tempat. Akibatnya: sulit test (butuh setup semua models), sulit maintain (perubahan di satu model affect yang lain), sulit reuse logic. Dengan Service-Repository separation, orchestration jadi explicit dan centralized di service layer.
+3. Eksplorasi Postman
+Postman sangat membantu test API tanpa perlu frontend. Features yang berguna:
+
+Environment variables: reuse base URL di semua requests
+Tests tab: validate response otomatis (check status code, field existence)
+Collections: organize & share endpoints dengan team
+Mock server: frontend bisa develop tanpa tunggu backend ready
+Newman CLI: load testing untuk simulate concurrent users
 
 #### Reflection Publisher-3
