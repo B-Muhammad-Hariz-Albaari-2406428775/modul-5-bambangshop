@@ -77,6 +77,42 @@ This is the place for you to write reflections:
 ### Mandatory (Publisher) Reflections
 
 #### Reflection Publisher-1
+Question 1: Do We Need an Interface/Trait, or is a Single Model Struct Enough?
+Answer: Ya, Meskipun hanya ada satu Subscriber model sekarang, trait penting karena:
+
+Decouple contract dari implementasi: Trait mendefinisikan kontrak observer terpisah dari implementasi Subscriber
+Mengikuti SOLID principles: Repository harus depend pada interface, bukan concrete type
+Future extensibility: Jika nanti ada EmailSubscriber, SMSSubscriber, dll., trait sudah siap
+Sesuai Observer pattern: Head First Design Patterns menggunakan interface justru karena value-nya adalah multiple implementations
+
+Tanpa trait, menyesuaikan untuk multiple observer types memerlukan refactoring besar.
+
+Question 2: Is Vec Sufficient, or is DashMap Necessary?
+Answer: DashMap is necessary.
+Alasan:
+
+Kompleksitas lookup: Vec = O(n), DashMap = O(1). Dengan 10,000 subscribers, Vec butuh ~5,000 komparasi vs DashMap = 1
+Kompleksitas deletion: Vec = O(n) (harus shift elements), DashMap = O(1)
+Uniqueness by design: DashMap otomatis enforce url unique via key, Vec harus manual check
+Scalability: Jutaan subscribers akan menjadi bottleneck di Vec
+
+url adalah unique identifier → membutuhkan key-based data structure (DashMap), bukan sequential (Vec).
+
+Question 3: Do We Need DashMap, or Can Singleton Pattern Alone Be Sufficient?
+Answer: Need both. They solve different problems.
+
+Jika hanya menggunakan Singleton + Mutex<HashMap>:
+
+Seluruh HashMap akan dikunci setiap kali ada operasi.
+Misalnya Thread A sedang menambah data kategori "electronics".
+Thread B tidak bisa mengakses kategori lain seperti "fashion" sampai lock dilepas.
+Akibatnya, banyak request bersamaan bisa membuat program menjadi lambat karena semua harus menunggu satu sama lain.
+
+DashMap bekerja berbeda:
+
+DashMap membagi data ke beberapa bagian (bucket).
+Setiap bagian memiliki lock sendiri.
+Jadi beberapa thread bisa mengakses key yang berbeda secara bersamaan tanpa saling menunggu.
 
 #### Reflection Publisher-2
 
