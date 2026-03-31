@@ -77,9 +77,9 @@ This is the place for you to write reflections:
 ### Mandatory (Publisher) Reflections
 
 #### Reflection Publisher-1
-Question 1: Do We Need an Interface/Trait, or is a Single Model Struct Enough?
-Answer: Ya, Meskipun hanya ada satu Subscriber model sekarang, trait penting karena:
+**1. Do We Need an Interface/Trait, or is a Single Model Struct Enough?**
 
+Ya, Meskipun hanya ada satu Subscriber model sekarang, trait penting karena:
 Decouple contract dari implementasi: Trait mendefinisikan kontrak observer terpisah dari implementasi Subscriber
 Mengikuti SOLID principles: Repository harus depend pada interface, bukan concrete type
 Future extensibility: Jika nanti ada EmailSubscriber, SMSSubscriber, dll., trait sudah siap
@@ -87,19 +87,19 @@ Sesuai Observer pattern: Head First Design Patterns menggunakan interface justru
 
 Tanpa trait, menyesuaikan untuk multiple observer types memerlukan refactoring besar.
 
-Question 2: Is Vec Sufficient, or is DashMap Necessary?
-Answer: DashMap is necessary.
-Alasan:
+**2. Is Vec Sufficient, or is DashMap Necessary?**
 
+DashMap is necessary,
 Kompleksitas lookup: Vec = O(n), DashMap = O(1). Dengan 10,000 subscribers, Vec butuh ~5,000 komparasi vs DashMap = 1
 Kompleksitas deletion: Vec = O(n) (harus shift elements), DashMap = O(1)
 Uniqueness by design: DashMap otomatis enforce url unique via key, Vec harus manual check
 Scalability: Jutaan subscribers akan menjadi bottleneck di Vec
 
-url adalah unique identifier → membutuhkan key-based data structure (DashMap), bukan sequential (Vec).
+url adalah unique identifier, membutuhkan key-based data structure (DashMap), bukan sequential (Vec).
 
-Question 3: Do We Need DashMap, or Can Singleton Pattern Alone Be Sufficient?
-Answer: Need both. They solve different problems.
+**3. Do We Need DashMap, or Can Singleton Pattern Alone Be Sufficient?**
+
+Need both. They solve different problems.
 
 Jika hanya menggunakan Singleton + Mutex<HashMap>:
 
@@ -115,11 +115,24 @@ Setiap bagian memiliki lock sendiri.
 Jadi beberapa thread bisa mengakses key yang berbeda secara bersamaan tanpa saling menunggu.
 
 #### Reflection Publisher-2
-1. Mengapa Memisahkan "Service" dan "Repository" dari Model?
-Pemisahan ini mengikuti Single Responsibility Principle (SRP). Repository hanya handle data access, Service handle business logic, Model jadi pure data structure. Ini membuat code lebih testable (test logic tanpa mock database), maintainable (change database engine hanya affect Repository), dan reusable (satu Service bisa pakai multiple Repository).
-2. Apa yang Terjadi Jika Hanya Menggunakan Model?
-Kompleksitas melonjak drastis karena tight coupling. Program Model harus tahu cara subscribe/unsubscribe, Subscriber tahu validate & query, Notification tahu track status—semua mixed di satu tempat. Akibatnya: sulit test (butuh setup semua models), sulit maintain (perubahan di satu model affect yang lain), sulit reuse logic. Dengan Service-Repository separation, orchestration jadi explicit dan centralized di service layer.
-3. Eksplorasi Postman
+**1. Mengapa Memisahkan "Service" dan "Repository" dari Model?**
+
+Pemisahan ini mengikuti Single Responsibility Principle (SRP). 
+Repository hanya handle data access, Service handle business logic, Model jadi pure data structure. 
+Ini membuat code lebih testable (test logic tanpa mock database), 
+maintainable (change database engine hanya affect Repository), 
+dan reusable (satu Service bisa pakai multiple Repository).
+
+**2. Apa yang Terjadi Jika Hanya Menggunakan Model?**
+
+Kompleksitas melonjak drastis karena tight coupling. Program Model harus tahu cara subscribe/unsubscribe, 
+Subscriber tahu validate & query, Notification tahu track status—semua mixed di satu tempat.
+Akibatnya sulit test (butuh setup semua models), sulit maintain (perubahan di satu model 
+affect yang lain), sulit reuse logic. Dengan Service-Repository separation, orchestration jadi
+explicit dan centralized di service layer.
+
+**3. Eksplorasi Postman**
+
 Postman sangat membantu test API tanpa perlu frontend. Features yang berguna:
 
 Environment variables: reuse base URL di semua requests
@@ -129,3 +142,35 @@ Mock server: frontend bisa develop tanpa tunggu backend ready
 Newman CLI: load testing untuk simulate concurrent users
 
 #### Reflection Publisher-3
+
+**1. Observer Pattern Variation yang Digunakan**
+
+Dalam tutorial ini, kita menggunakan Push model. 
+Publisher (NotificationService) secara aktif mendorong data (Notification payload) kepada
+subscribers melalui method subscriber.update(payload). 
+Setiap kali ada event (product created atau published), 
+NotificationService langsung mengirim notification object lengkap ke semua subscribers tanpa subscribers meminta data terlebih dahulu.
+
+**2. Keuntungan dan Kerugian Pull Model**
+
+Keuntungan:
+- Subscribers bisa memutuskan kapan dan data apa yang perlu di-pull dari publisher
+- Mengurangi beban network jika subscribers tidak perlu semua updates (selective pulling)
+- Decoupling lebih kuat, publisher tidak perlu maintain list of subscribers, cukup expose data via endpoint
+- Effisien untuk subscribers yang jarang membutuhkan updates
+
+Kerugian:
+- Subscribers harus implement polling logic, yang introduce complexity di client side
+- Latency meningkat, ada delay antara event terjadi dan subscriber menyadarinya (tergantung polling interval)
+- Network overhead malah bisa lebih besar jika banyak subscribers polling frequently tapi tidak ada data baru
+- Subscribers harus tahu kapan harus pull, memerlukan external trigger atau timer logic
+
+Untuk case ini, Push model lebih cocok karena notifikasi produk adalah time-sensitive events yang butuh immediate delivery ke semua subscribers. Pull model akan membuat subscribers tertinggal berita penting.
+
+3. Dampak Tanpa Multi-threading
+
+- Blocking behavior: Ketika ProductService::publish(id) dipanggil, thread utama akan menunggu semua subscribers menerima notification sebelum response dikirim ke client. Jika ada 1000 subscribers dan setiap HTTP request ke subscriber butuh 1 detik, total waiting time bisa 1000 detik.
+- Poor user experience: Shop owner yang publish product akan mengalami hang/delayed response. API endpoint akan terasa sangat slow.
+- Bottleneck di network I/O: Karena HTTP requests ke subscribers sequential, jika satu subscriber lambat atau timeout, semua subscriber di belakangnya jadi terpengaruh (cascade delay).
+-  Server resource under-utilization: Thread hanya bisa handle satu subscriber request pada waktu tertentu, sehingga CPU idle sambil menunggu I/O response.
+- Scalability issue: Semakin banyak subscribers, semakin lama operasi publish. Tidak scalable untuk production dengan ribuan subscribers.
